@@ -1,15 +1,15 @@
 import numpy as np
-from scipy import linalg as LA
+#from scipy import linalg as LA
 from scipy import stats as ss
 import astropy.io.fits as fits
-import matplotlib.pyplot as p
-
+import matplotlib.pyplot as plt
 
 TracerArray = np.array(['cs','h13cn','h13co+',\
                            'hcn','hco+','hnco','hco',\
                            'ch3ocho','ch3oh_extended',\
                            'ch3sh_extended','hn13c','sio','hc3n_extended'])
 
+TracerArray = np.array(['hcn','hco+','hnco','sio'])    
 dir = '/srv/astro/erosolo/n253/cubes/newrelease/lines/robust/non_pbcor/'
 
 
@@ -21,18 +21,20 @@ SignalIndex = np.where(cube > 0.01)
 
 normalization = np.zeros(len(TracerArray))
 
+matrix = None
 for idx, tracer in enumerate(TracerArray):
     cube= fits.getdata(dir+'ngc253_'+tracer+'_clean_RO.fits')
     cube.shape = cube.shape[1:]
     vector = cube[SignalIndex]
-    score90 = ss.scoreatpercentile(vector,90.0)
-    vector[np.isnan(vector)]=0.0
-    normalization[idx] = score90
-    vector = vector / score90
-    try:
-        matrix = np.vstack((matrix,vector))
-    except NameError:
+    vector = ss.rankdata(vector)/len(vector)
+    #    score90 = ss.scoreatpercentile(vector,90.0)
+    #    vector[np.isnan(vector)]=0.0
+    #    normalization[idx] = score90
+    #    vector = vector / score90
+    if matrix is None:
         matrix = vector
+    matrix = np.vstack((matrix,vector))        
+
 
         
 matrix = matrix.T
@@ -53,10 +55,7 @@ for Comp,Value in enumerate(Evals):
         cube= fits.getdata(dir+'ngc253_'+tracer+'_clean_RO.fits')
         cube.shape = cube.shape[1:]
         cube[np.isnan(cube)]=0.0
-        try:
-            WeightCube = wts[index]/normalization[index]*cube+WeightCube
-        except NameError:
-            WeightCube = wts[index]/normalization[index]*cube
+        WeightCube = wts[index]*cube+WeightCube
 
     WeightCube[WeightCube==0]=np.nan
     fits.writeto('ngc253.pca_component_'+str(Comp)+'.fits',WeightCube,hdr,clobber=True)
